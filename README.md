@@ -50,7 +50,7 @@ The assistant streams a grounded answer and shows response time, token usage, th
 
 Questions, answers, model details, token usage, response time, and retrieved sources are saved and displayed in the conversation history.
 
-![Saved conversation history](screenshots/History-page.png)
+![Saved conversation history](screenshots/Histroy-page.png)
 
 ### Document Dashboard
 
