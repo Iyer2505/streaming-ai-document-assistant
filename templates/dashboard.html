@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Document Dashboard</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <main class="container">
+        <section class="header">
+            <h1>Document Dashboard</h1>
+
+            <p>
+                Open, review or delete previously
+                uploaded documents.
+            </p>
+
+            <a
+                href="{{ url_for('home') }}"
+                class="link-button"
+            >
+                Upload new document
+            </a>
+        </section>
+
+        <div
+            id="dashboard-message"
+            class="message"
+            hidden
+        ></div>
+
+        <section class="card">
+            <div class="history-title-row">
+                <h2>Uploaded documents</h2>
+
+                <span>
+                    {{ documents|length }}
+                    document(s)
+                </span>
+            </div>
+
+            {% if documents %}
+                <div
+                    id="documents-grid"
+                    class="documents-grid"
+                >
+                    {% for document in documents %}
+                        <article
+                            class="document-dashboard-card"
+                            id="document-card-{{ document.id }}"
+                        >
+                            <div>
+                                <h3>
+                                    {{ document.original_filename }}
+                                </h3>
+
+                                <p class="document-id-label">
+                                    Document ID:
+                                    {{ document.id }}
+                                </p>
+                            </div>
+
+                            <div class="document-dashboard-details">
+                                <span>
+                                    {{ document.word_count }}
+                                    words
+                                </span>
+
+                                <span>
+                                    {{ document.chunk_count }}
+                                    chunks
+                                </span>
+
+                                <span>
+                                    {{ document.file_type }}
+                                </span>
+
+                                <span>
+                                    {{ document.created_at }}
+                                </span>
+                            </div>
+
+                            <div class="dashboard-actions">
+                                <a
+                                    href="{{ url_for(
+                                        'open_document',
+                                        document_id=document.id
+                                    ) }}"
+                                    class="link-button"
+                                >
+                                    Open document
+                                </a>
+
+                                <button
+                                    type="button"
+                                    class="danger-button delete-document-button"
+                                    data-document-id="{{ document.id }}"
+                                    data-filename="{{ document.original_filename }}"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+
+            {% else %}
+                <div class="empty-dashboard">
+                    <h3>No documents uploaded yet</h3>
+
+                    <p>
+                        Upload your first document to
+                        begin asking questions.
+                    </p>
+
+                    <a
+                        href="{{ url_for('home') }}"
+                        class="link-button"
+                    >
+                        Upload document
+                    </a>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        const dashboardMessage =
+            document.getElementById(
+                "dashboard-message"
+            );
+
+        const deleteButtons =
+            document.querySelectorAll(
+                ".delete-document-button"
+            );
+
+
+        function showDashboardMessage(
+            message,
+            type,
+            requestId = null
+        ) {
+            dashboardMessage.textContent = "";
+
+            const messageElement =
+                document.createElement("div");
+
+            messageElement.textContent =
+                message;
+
+            dashboardMessage.appendChild(
+                messageElement
+            );
+
+            if (requestId) {
+                const requestElement =
+                    document.createElement(
+                        "small"
+                    );
+
+                requestElement.textContent =
+                    `Request ID: ${requestId}`;
+
+                dashboardMessage.appendChild(
+                    requestElement
+                );
+            }
+
+            dashboardMessage.className =
+                `message ${type}-message`;
+
+            dashboardMessage.hidden =
+                false;
+        }
+
+
+        deleteButtons.forEach(
+            (button) => {
+                button.addEventListener(
+                    "click",
+                    async () => {
+                        const documentId =
+                            button.dataset.documentId;
+
+                        const filename =
+                            button.dataset.filename;
+
+                        const confirmed =
+                            window.confirm(
+                                `Delete "${filename}"? `
+                                + "This will also delete "
+                                + "its conversation history."
+                            );
+
+                        if (!confirmed) {
+                            return;
+                        }
+
+                        button.disabled = true;
+                        button.textContent =
+                            "Deleting...";
+
+                        try {
+                            const response =
+                                await fetch(
+                                    `/documents/${
+                                        documentId
+                                    }/delete`,
+                                    {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type":
+                                                "application/json"
+                                        }
+                                    }
+                                );
+
+                            const data =
+                                await response.json();
+
+                            if (!response.ok) {
+                                const error =
+                                    new Error(
+                                        data.error
+                                        || "The document "
+                                        + "could not be deleted."
+                                    );
+
+                                error.requestId =
+                                    data.request_id;
+
+                                throw error;
+                            }
+
+                            const documentCard =
+                                document.getElementById(
+                                    `document-card-${
+                                        documentId
+                                    }`
+                                );
+
+                            documentCard?.remove();
+
+                            showDashboardMessage(
+                                data.message,
+                                "success"
+                            );
+
+                            const remainingCards =
+                                document.querySelectorAll(
+                                    ".document-dashboard-card"
+                                );
+
+                            if (
+                                remainingCards.length === 0
+                            ) {
+                                window.location.reload();
+                            }
+
+                        } catch (error) {
+                            showDashboardMessage(
+                                error.message
+                                || "Something went wrong.",
+                                "error",
+                                error.requestId
+                            );
+
+                            button.disabled = false;
+                            button.textContent =
+                                "Delete";
+                        }
+                    }
+                );
+            }
+        );
+    </script>
+</body>
+</html>

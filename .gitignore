@@ -1,0 +1,75 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Type checking and linting
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Uploaded documents
+uploads/*
+!uploads/.gitkeep
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB vector storage
+chroma_db/
+chroma/
+.chroma/
+
+# Application logs
+logs/*
+*.log
+!logs/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+
+# Local model caches
+.cache/
+huggingface/
+sentence_transformers/
+
+# Jupyter
+.ipynb_checkpoints/

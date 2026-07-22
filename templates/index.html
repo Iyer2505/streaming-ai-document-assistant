@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AI Document Assistant</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <main class="container">
+
+        {% if error %}
+            <div class="message error-message">
+                <div>{{ error }}</div>
+
+                {% if request_id %}
+                    <small>
+                        Request ID: {{ request_id }}
+                    </small>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if success %}
+            <div class="message success-message">
+                {{ success }}
+            </div>
+        {% endif %}
+
+        <div
+            id="browser-message"
+            class="message"
+            hidden
+        ></div>
+
+        <section class="header">
+            <h1>AI Document Assistant</h1>
+
+            <p>
+                Upload a document and ask questions
+                about its contents.
+            </p>
+
+            <a
+                href="{{ url_for('document_dashboard') }}"
+                class="link-button"
+            >
+                View uploaded documents
+            </a>
+        </section>
+
+        <section class="card">
+            <h2>Upload a document</h2>
+
+            <form
+                id="upload-form"
+                action="/upload"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+                <label for="document">
+                    Select a PDF, DOCX or TXT file
+                </label>
+
+                <input
+                    type="file"
+                    id="document"
+                    name="document"
+                    accept=".pdf,.docx,.txt"
+                    required
+                >
+
+                <button type="submit">
+                    Upload document
+                </button>
+            </form>
+
+            <p id="selected-file">
+                No file selected
+            </p>
+        </section>
+
+        {% if document_id %}
+            <section class="card">
+                <h2>Document processed</h2>
+
+                <div class="document-details">
+                    <p>
+                        <strong>Document ID:</strong>
+                        {{ document_id }}
+                    </p>
+
+                    <p>
+                        <strong>Filename:</strong>
+                        {{ uploaded_filename }}
+                    </p>
+
+                    <p>
+                        <strong>Words:</strong>
+                        {{ word_count }}
+                    </p>
+
+                    <p>
+                        <strong>Characters:</strong>
+                        {{ character_count }}
+                    </p>
+
+                    <p>
+                        <strong>Chunks:</strong>
+                        {{ chunk_count }}
+                    </p>
+
+                    <p>
+                        <strong>Stored embeddings:</strong>
+                        {{ stored_embedding_count }}
+                    </p>
+
+                    <p>
+                        <strong>Embedding dimensions:</strong>
+                        {{ embedding_dimension }}
+                    </p>
+
+                    <p>
+                        <strong>Total vectors:</strong>
+                        {{ total_vector_count }}
+                    </p>
+                </div>
+
+                {% if text_preview %}
+                    <h3>Extracted text preview</h3>
+
+                    <pre class="text-preview">{{ text_preview }}</pre>
+                {% endif %}
+
+                {% if chunk_previews %}
+                    <h3>Chunk preview</h3>
+
+                    <div class="chunks-container">
+                        {% for chunk in chunk_previews %}
+                            <article class="chunk-card">
+                                <div class="chunk-header">
+                                    <strong>
+                                        Chunk {{ chunk.chunk_id }}
+                                    </strong>
+
+                                    <span>
+                                        {{ chunk.character_count }}
+                                        characters
+                                    </span>
+                                </div>
+
+                                <p class="chunk-position">
+                                    Position
+                                    {{ chunk.start_index }}
+                                    to
+                                    {{ chunk.end_index }}
+                                </p>
+
+                                <pre class="chunk-text">{{ chunk.text }}</pre>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        <section
+            class="card {% if not document_id %}disabled-section{% endif %}"
+        >
+            <h2>Ask a question</h2>
+
+            <form id="search-form">
+                <input
+                    type="hidden"
+                    id="document-id"
+                    value="{{ document_id or '' }}"
+                >
+
+                <label for="question">
+                    Question
+                </label>
+
+                <textarea
+                    id="question"
+                    maxlength="1000"
+                    placeholder="{% if document_id %}Ask a question about the uploaded document{% else %}Upload a document before asking a question{% endif %}"
+                    {% if not document_id %}disabled{% endif %}
+                    required
+                ></textarea>
+
+                <button
+                    id="ask-button"
+                    type="submit"
+                    {% if not document_id %}disabled{% endif %}
+                >
+                    Ask AI
+                </button>
+            </form>
+        </section>
+
+        <section
+            id="answer-section"
+            class="card answer-card"
+            hidden
+        >
+            <h2>AI answer</h2>
+
+            <div class="question-box">
+                <strong>Your question</strong>
+                <p id="displayed-question"></p>
+            </div>
+
+            <div
+                id="answer-content"
+                class="answer-content"
+            ></div>
+
+            <span
+                id="streaming-cursor"
+                class="streaming-cursor"
+                hidden
+            ></span>
+
+            <div
+                id="answer-metrics"
+                class="answer-metrics"
+                hidden
+            >
+                <span id="response-time"></span>
+                <span id="token-usage"></span>
+                <span id="model-name"></span>
+            </div>
+        </section>
+
+        <section
+            id="sources-section"
+            class="card"
+            hidden
+        >
+            <h2>Retrieved sources</h2>
+
+            <div
+                id="search-results"
+                class="search-results"
+            ></div>
+        </section>
+
+        {% if document_id %}
+            <section class="card">
+                <div class="history-title-row">
+                    <h2>Conversation history</h2>
+
+                    <button
+                        id="refresh-history-button"
+                        type="button"
+                        class="secondary-button"
+                    >
+                        Refresh history
+                    </button>
+                </div>
+
+                <p
+                    id="history-empty-message"
+                    class="chunk-note"
+                    {% if chat_history %}hidden{% endif %}
+                >
+                    No saved questions yet.
+                </p>
+
+                <div
+                    id="chat-history"
+                    class="chat-history"
+                >
+                    {% for item in chat_history or [] %}
+                        <article class="history-card">
+                            <div class="history-question">
+                                <strong>Question</strong>
+                                <p>{{ item.question }}</p>
+                            </div>
+
+                            <div class="history-answer">
+                                <strong>Answer</strong>
+                                <p>{{ item.answer }}</p>
+                            </div>
+
+                            <div class="history-metrics">
+                                <span>{{ item.created_at }}</span>
+
+                                <span>
+                                    {{ item.response_time_ms or "N/A" }} ms
+                                </span>
+
+                                <span>
+                                    {{ item.total_tokens or "N/A" }} tokens
+                                </span>
+
+                                <span>
+                                    {{ item.model_name or "Unknown model" }}
+                                </span>
+                            </div>
+
+                            {% if item.sources %}
+                                <details class="history-sources">
+                                    <summary>
+                                        View {{ item.sources|length }}
+                                        retrieved source(s)
+                                    </summary>
+
+                                    {% for source in item.sources %}
+                                        <div class="history-source">
+                                            <strong>
+                                                Source {{ loop.index }}
+                                            </strong>
+
+                                            <p>
+                                                {{ source.filename }},
+                                                chunk {{ source.chunk_number }},
+                                                similarity
+                                                {{ source.similarity_percentage }}%
+                                            </p>
+
+                                            <pre class="chunk-text">{{ source.text }}</pre>
+                                        </div>
+                                    {% endfor %}
+                                </details>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+    </main>
+
+    <script>
+        const fileInput =
+            document.getElementById("document");
+
+        const selectedFile =
+            document.getElementById("selected-file");
+
+        const uploadForm =
+            document.getElementById("upload-form");
+
+        const searchForm =
+            document.getElementById("search-form");
+
+        const documentIdInput =
+            document.getElementById("document-id");
+
+        const questionInput =
+            document.getElementById("question");
+
+        const askButton =
+            document.getElementById("ask-button");
+
+        const answerSection =
+            document.getElementById("answer-section");
+
+        const answerContent =
+            document.getElementById("answer-content");
+
+        const displayedQuestion =
+            document.getElementById("displayed-question");
+
+        const sourcesSection =
+            document.getElementById("sources-section");
+
+        const searchResultsContainer =
+            document.getElementById("search-results");
+
+        const browserMessage =
+            document.getElementById("browser-message");
+
+        const streamingCursor =
+            document.getElementById("streaming-cursor");
+
+        const answerMetrics =
+            document.getElementById("answer-metrics");
+
+        const responseTime =
+            document.getElementById("response-time");
+
+        const tokenUsage =
+            document.getElementById("token-usage");
+
+        const modelName =
+            document.getElementById("model-name");
+
+        const chatHistoryContainer =
+            document.getElementById("chat-history");
+
+        const historyEmptyMessage =
+            document.getElementById("history-empty-message");
+
+        const refreshHistoryButton =
+            document.getElementById(
+                "refresh-history-button"
+            );
+
+
+        function showMessage(
+            message,
+            type,
+            requestId = null
+        ) {
+            browserMessage.textContent = "";
+
+            const messageText =
+                document.createElement("div");
+
+            messageText.textContent =
+                message;
+
+            browserMessage.appendChild(
+                messageText
+            );
+
+            if (requestId) {
+                const requestDetails =
+                    document.createElement("small");
+
+                requestDetails.textContent =
+                    `Request ID: ${requestId}`;
+
+                browserMessage.appendChild(
+                    requestDetails
+                );
+            }
+
+            browserMessage.hidden = false;
+
+            browserMessage.className =
+                `message ${type}-message`;
+        }
+
+
+        function hideMessage() {
+            browserMessage.hidden = true;
+            browserMessage.textContent = "";
+        }
+
+
+        function createApiError(
+            data,
+            fallbackMessage
+        ) {
+            const error = new Error(
+                data.error
+                || fallbackMessage
+            );
+
+            error.requestId =
+                data.request_id;
+
+            return error;
+        }
+
+
+        function escapeHtml(value) {
+            const element =
+                document.createElement("div");
+
+            element.textContent =
+                String(value ?? "");
+
+            return element.innerHTML;
+        }
+
+
+        function displaySources(results) {
+            searchResultsContainer.innerHTML = "";
+
+            results.forEach(
+                (result, index) => {
+                    const metadata =
+                        result.metadata || {};
+
+                    const card =
+                        document.createElement(
+                            "article"
+                        );
+
+                    card.className =
+                        "search-result-card";
+
+                    card.innerHTML = `
+                        <div class="search-result-header">
+                            <strong>
+                                Source ${index + 1}
+                            </strong>
+
+                            <span>
+                                Similarity:
+                                ${escapeHtml(
+                                    result.similarity_percentage
+                                )}%
+                            </span>
+                        </div>
+
+                        <div class="result-metadata">
+                            <span>
+                                Filename:
+                                ${escapeHtml(
+                                    metadata.filename
+                                )}
+                            </span>
+
+                            <span>
+                                Chunk
+                                ${escapeHtml(
+                                    metadata.chunk_number
+                                )}
+                            </span>
+                        </div>
+
+                        <pre class="chunk-text">${escapeHtml(
+                            result.text
+                        )}</pre>
+                    `;
+
+                    searchResultsContainer.appendChild(
+                        card
+                    );
+                }
+            );
+
+            sourcesSection.hidden = false;
+        }
+
+
+        function displayCompletionMetrics(
+            streamEvent
+        ) {
+            const milliseconds =
+                streamEvent.response_time_ms;
+
+            responseTime.textContent =
+                typeof milliseconds === "number"
+                    ? `Response time: ${
+                        (
+                            milliseconds / 1000
+                        ).toFixed(2)
+                    } seconds`
+                    : "Response time: N/A";
+
+            tokenUsage.textContent =
+                `Tokens: ${
+                    streamEvent.input_tokens ?? "N/A"
+                } input, ${
+                    streamEvent.output_tokens ?? "N/A"
+                } output, ${
+                    streamEvent.total_tokens ?? "N/A"
+                } total`;
+
+            modelName.textContent =
+                `Model: ${
+                    streamEvent.model_name
+                    || "Unknown"
+                }`;
+
+            answerMetrics.hidden = false;
+        }
+
+
+        function processStreamEvent(
+            streamEvent
+        ) {
+            if (streamEvent.type === "delta") {
+                answerContent.textContent +=
+                    streamEvent.text || "";
+
+                return;
+            }
+
+            if (streamEvent.type === "completed") {
+                displayCompletionMetrics(
+                    streamEvent
+                );
+
+                return;
+            }
+
+            if (streamEvent.type === "error") {
+                const error = new Error(
+                    streamEvent.message
+                    || "Streaming failed."
+                );
+
+                error.requestId =
+                    streamEvent.request_id;
+
+                throw error;
+            }
+        }
+
+
+        function renderHistory(history) {
+            if (!chatHistoryContainer) {
+                return;
+            }
+
+            chatHistoryContainer.innerHTML = "";
+
+            if (!history.length) {
+                historyEmptyMessage.hidden = false;
+                return;
+            }
+
+            historyEmptyMessage.hidden = true;
+
+            history.forEach((item) => {
+                const card =
+                    document.createElement("article");
+
+                card.className = "history-card";
+
+                const sources =
+                    Array.isArray(item.sources)
+                        ? item.sources
+                        : [];
+
+                const sourcesHtml = sources.length
+                    ? `
+                        <details class="history-sources">
+                            <summary>
+                                View ${sources.length}
+                                retrieved source(s)
+                            </summary>
+
+                            ${sources.map(
+                                (source, index) => `
+                                    <div class="history-source">
+                                        <strong>
+                                            Source ${index + 1}
+                                        </strong>
+
+                                        <p>
+                                            ${escapeHtml(
+                                                source.filename
+                                            )},
+                                            chunk ${escapeHtml(
+                                                source.chunk_number
+                                            )},
+                                            similarity ${escapeHtml(
+                                                source.similarity_percentage
+                                            )}%
+                                        </p>
+
+                                        <pre class="chunk-text">${escapeHtml(
+                                            source.text
+                                        )}</pre>
+                                    </div>
+                                `
+                            ).join("")}
+                        </details>
+                    `
+                    : "";
+
+                card.innerHTML = `
+                    <div class="history-question">
+                        <strong>Question</strong>
+                        <p>${escapeHtml(item.question)}</p>
+                    </div>
+
+                    <div class="history-answer">
+                        <strong>Answer</strong>
+                        <p>${escapeHtml(item.answer)}</p>
+                    </div>
+
+                    <div class="history-metrics">
+                        <span>
+                            ${escapeHtml(item.created_at)}
+                        </span>
+
+                        <span>
+                            ${escapeHtml(
+                                item.response_time_ms ?? "N/A"
+                            )} ms
+                        </span>
+
+                        <span>
+                            ${escapeHtml(
+                                item.total_tokens ?? "N/A"
+                            )} tokens
+                        </span>
+
+                        <span>
+                            ${escapeHtml(
+                                item.model_name
+                                || "Unknown model"
+                            )}
+                        </span>
+                    </div>
+
+                    ${sourcesHtml}
+                `;
+
+                chatHistoryContainer.appendChild(
+                    card
+                );
+            });
+        }
+
+
+        async function loadChatHistory() {
+            if (!documentIdInput?.value) {
+                return;
+            }
+
+            const response = await fetch(
+                `/chat-history/${
+                    documentIdInput.value
+                }`
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw createApiError(
+                    data,
+                    "Chat history could not be loaded."
+                );
+            }
+
+            renderHistory(
+                data.history || []
+            );
+        }
+
+
+        fileInput.addEventListener(
+            "change",
+            () => {
+                selectedFile.textContent =
+                    fileInput.files.length > 0
+                        ? `Selected file: ${
+                            fileInput.files[0].name
+                        }`
+                        : "No file selected";
+            }
+        );
+
+
+        uploadForm.addEventListener(
+            "submit",
+            () => {
+                const uploadButton =
+                    uploadForm.querySelector(
+                        "button[type='submit']"
+                    );
+
+                uploadButton.disabled = true;
+
+                uploadButton.textContent =
+                    "Uploading and embedding...";
+            }
+        );
+
+
+        if (refreshHistoryButton) {
+            refreshHistoryButton.addEventListener(
+                "click",
+                async () => {
+                    refreshHistoryButton.disabled =
+                        true;
+
+                    refreshHistoryButton.textContent =
+                        "Refreshing...";
+
+                    try {
+                        await loadChatHistory();
+
+                    } catch (error) {
+                        showMessage(
+                            error.message,
+                            "error",
+                            error.requestId
+                        );
+
+                    } finally {
+                        refreshHistoryButton.disabled =
+                            false;
+
+                        refreshHistoryButton.textContent =
+                            "Refresh history";
+                    }
+                }
+            );
+        }
+
+
+        searchForm.addEventListener(
+            "submit",
+            async (event) => {
+                event.preventDefault();
+
+                hideMessage();
+
+                const documentId =
+                    documentIdInput.value;
+
+                const question =
+                    questionInput.value.trim();
+
+                if (!documentId) {
+                    showMessage(
+                        "Upload a document first.",
+                        "error"
+                    );
+
+                    return;
+                }
+
+                if (!question) {
+                    showMessage(
+                        "Please enter a question.",
+                        "error"
+                    );
+
+                    return;
+                }
+
+                askButton.disabled = true;
+
+                askButton.textContent =
+                    "Retrieving sources...";
+
+                answerSection.hidden = true;
+                sourcesSection.hidden = true;
+                answerContent.textContent = "";
+                answerMetrics.hidden = true;
+
+                try {
+                    const searchResponse =
+                        await fetch(
+                            "/search",
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type":
+                                        "application/json"
+                                },
+                                body: JSON.stringify({
+                                    document_id:
+                                        documentId,
+                                    question:
+                                        question
+                                })
+                            }
+                        );
+
+                    const searchData =
+                        await searchResponse.json();
+
+                    if (!searchResponse.ok) {
+                        throw createApiError(
+                            searchData,
+                            "Semantic search failed."
+                        );
+                    }
+
+                    displaySources(
+                        searchData.search_results
+                    );
+
+                    displayedQuestion.textContent =
+                        question;
+
+                    answerSection.hidden = false;
+                    streamingCursor.hidden = false;
+
+                    askButton.textContent =
+                        "Generating answer...";
+
+                    const streamResponse =
+                        await fetch(
+                            "/stream-answer",
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type":
+                                        "application/json"
+                                },
+                                body: JSON.stringify({
+                                    document_id:
+                                        documentId,
+                                    question:
+                                        question
+                                })
+                            }
+                        );
+
+                    if (!streamResponse.ok) {
+                        const errorData =
+                            await streamResponse.json();
+
+                        throw createApiError(
+                            errorData,
+                            "Answer generation failed."
+                        );
+                    }
+
+                    if (!streamResponse.body) {
+                        throw new Error(
+                            "Streaming is not supported "
+                            + "by this browser."
+                        );
+                    }
+
+                    const reader =
+                        streamResponse.body.getReader();
+
+                    const decoder =
+                        new TextDecoder();
+
+                    let buffer = "";
+
+                    while (true) {
+                        const {
+                            value,
+                            done
+                        } = await reader.read();
+
+                        if (done) {
+                            break;
+                        }
+
+                        buffer += decoder.decode(
+                            value,
+                            {
+                                stream: true
+                            }
+                        );
+
+                        const lines =
+                            buffer.split("\n");
+
+                        buffer =
+                            lines.pop() || "";
+
+                        for (const line of lines) {
+                            if (!line.trim()) {
+                                continue;
+                            }
+
+                            processStreamEvent(
+                                JSON.parse(line)
+                            );
+                        }
+                    }
+
+                    buffer += decoder.decode();
+
+                    if (buffer.trim()) {
+                        for (
+                            const line
+                            of buffer.split("\n")
+                        ) {
+                            if (!line.trim()) {
+                                continue;
+                            }
+
+                            processStreamEvent(
+                                JSON.parse(line)
+                            );
+                        }
+                    }
+
+                    await loadChatHistory();
+
+                    showMessage(
+                        "The answer was generated "
+                        + "and saved successfully.",
+                        "success"
+                    );
+
+                } catch (error) {
+                    showMessage(
+                        error.message
+                        || "Something went wrong.",
+                        "error",
+                        error.requestId
+                    );
+
+                    if (
+                        answerContent.textContent.trim()
+                        === ""
+                    ) {
+                        answerSection.hidden = true;
+                    }
+
+                } finally {
+                    streamingCursor.hidden = true;
+                    askButton.disabled = false;
+                    askButton.textContent = "Ask AI";
+                }
+            }
+        );
+    </script>
+</body>
+</html>
