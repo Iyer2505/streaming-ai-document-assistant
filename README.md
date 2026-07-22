@@ -44,13 +44,13 @@ After a successful upload, the application displays document metadata, extracted
 
 The assistant streams a grounded answer and shows response time, token usage, the selected model, source chunks, and similarity scores.
 
-![AI answer and retrieved sources](screenshots/AIanswer.png)
+![AI answer and retrieved sources](screenshots/AI-answer.png)
 
 ### Conversation History
 
 Questions, answers, model details, token usage, response time, and retrieved sources are saved and displayed in the conversation history.
 
-![Saved conversation history](screenshots/Historypage.png)
+![Saved conversation history](screenshots/History-page.png)
 
 ### Document Dashboard
 
