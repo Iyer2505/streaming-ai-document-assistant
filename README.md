@@ -38,7 +38,7 @@ The home page allows users to upload a supported document and access the uploade
 
 After a successful upload, the application displays document metadata, extracted text, chunk information, embedding dimensions, and vector count.
 
-![Uploaded document processing result](screenshots/uploadfile.png)
+![Uploaded document processing result](screenshots/upload-file.png)
 
 ### AI Answer and Retrieved Sources
 
