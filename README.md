@@ -38,19 +38,19 @@ The home page allows users to upload a supported document and access the uploade
 
 After a successful upload, the application displays document metadata, extracted text, chunk information, embedding dimensions, and vector count.
 
-![Uploaded document processing result](screenshots/upload-file.png)
+![Uploaded document processing result](screenshots/upload_file.png)
 
 ### AI Answer and Retrieved Sources
 
 The assistant streams a grounded answer and shows response time, token usage, the selected model, source chunks, and similarity scores.
 
-![AI answer and retrieved sources](screenshots/AI-answer.png)
+![AI answer and retrieved sources](screenshots/AI_answer.png)
 
 ### Conversation History
 
 Questions, answers, model details, token usage, response time, and retrieved sources are saved and displayed in the conversation history.
 
-![Saved conversation history](screenshots/History-page.png)
+![Saved conversation history](screenshots/History_page.png)
 
 ### Document Dashboard
 
